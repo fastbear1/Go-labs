@@ -22,6 +22,16 @@ var (
 	CmdDown []byte = []byte{27, 91, 64}
 )
 
+type InterruptStdin struct {
+	data string
+}
+
+func (ist InterruptStdin) Read(buf []byte) (n int, err error) {
+	buf = append(buf, []byte(ist.data)...)
+
+	return len(ist.data), nil
+}
+
 func getHistoryFile() (*os.File, error) {
 	var f *os.File
 	dirname, err := os.UserHomeDir()
@@ -101,13 +111,18 @@ func main() {
 		sigs := <-stop
 		fmt.Println("Exit signal: ", sigs)
 		finish <- 0
-		//os.Stdin.Write([]byte("\n"))
+		StopReader := InterruptStdin{data: "0\n"}
+		reader.Reset(StopReader)
+		fmt.Println(reader.Buffered())
+		reader.UnreadByte()
+		fmt.Println(reader.Buffered())
+		//fmt.Println(reader.UnreadByte())
 	}()
 
 	fmt.Println("Command line interactive")
 	fmt.Println("---------------------")
 
-	for {
+	for Running {
 		select {
 		case <-finish:
 			fmt.Println("Exiting...")
@@ -116,16 +131,12 @@ func main() {
 		default:
 			fmt.Print("> ")
 			buf, _ := reader.ReadBytes('\n')
-			if buf[0] == byte(0) {
-				fmt.Println("Getting exit string")
-				continue
-			}
 
 			cmd := strings.Split(string(buf[:len(buf)-1]), " ")
 			switch cmd[0] {
 			case "hi":
 				fmt.Println("hello, Yourself")
-			case "exit":
+			case "exit", "q":
 				Running = false
 			case "worker":
 				//h.addHistory(string(buf))
